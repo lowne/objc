@@ -2098,13 +2098,17 @@ local function toobj(v) --convert a lua value to an objc object representing tha
 end
 
 local function tolua(obj) --convert an objc object that converts naturally to a lua value
-	if isa(obj, objc.NSNumber) then
-		return obj:doubleValue()
+	if obj==nil then return nil
+	elseif isa(obj, objc.NSNumber) then
+--		return obj:doubleValue()
+		return obj.doubleValue
 	elseif isa(obj, objc.NSString) then
 		return obj:UTF8String()
+--		return obj.UTF8String
 	elseif isa(obj, objc.NSDictionary) then
 		local t = {}
-		local count = tonumber(obj:count())
+--		local count = tonumber(obj:count())
+		local count = tonumber(obj.count)
 		local vals = ffi.new('id[?]', count)
 		local keys = ffi.new('id[?]', count)
 		obj:getObjects_andKeys(vals, keys)
@@ -2114,7 +2118,8 @@ local function tolua(obj) --convert an objc object that converts naturally to a 
 		return t
 	elseif isa(obj, objc.NSArray) then
 		local t = {}
-		for i = 0, tonumber(obj:count())-1 do
+		-- for i = 0, tonumber(obj:count())-1 do
+		for i = 0, tonumber(obj.count)-1 do
 			t[#t+1] = tolua(obj:objectAtIndex(i))
 		end
 		return t
@@ -2349,7 +2354,7 @@ end
 --dynamic namespace
 setmetatable(objc, {
 	__index = function(t, k)
-		return class(k) or csymbol(k) or autoload(k)
+		return class(k) or csymbol(k) or autoload(k) or error('objc.lua: '..k..' not found')
 	end,
 	__autoload = submodules, --for inspection
 })
