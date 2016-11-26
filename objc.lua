@@ -117,6 +117,10 @@ local objc = {}                               --public namespace
 setfenv(1, P)                                 --globals go in P, which is published as objc.debug
 
 --helpers ----------------------------------------------------------------------------------------------------------------
+local type,tostring,tonumber,rawget,rawset=type,tostring,tonumber,rawget,rawset
+local pcall,xpcall=pcall,xpcall
+local next,pairs,ipairs=next,pairs,ipairs
+local select=select
 
 local _ = string.format
 local id_ct = ffi.typeof'id'
