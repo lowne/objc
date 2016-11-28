@@ -650,7 +650,7 @@ local function add_function(name, ftype, lazy) --cdef and call-wrap a global C f
       err('symbol', 'missing C function: %s', name)
       return
     end
-    local caller = function_caller(ftype, cfunc)
+    local caller = function_caller(ftype, cfunc) or C[name]
     rawset(objc, name, caller) --overshadow the C function with the caller
     return caller
   end
@@ -1664,7 +1664,7 @@ local method_caller = memoize2(function(cls, selname)
 
   local func = method_imp(method)
   local func = cast(ct, func)
-  local func = function_caller(ftype, func)
+  local func = function_caller(ftype, func) or func
 
   local can_retain = not noretain[selname]
   local is_release = selname == 'release' or selname == 'autorelease'
@@ -2108,7 +2108,7 @@ local function tolua(obj) --convert an objc object that converts naturally to a 
     return obj.doubleValue
 elseif isa(obj, objc.NSString) then
   return obj:UTF8String()
-    --		return obj.UTF8String
+    --  return obj.UTF8String
 elseif isa(obj, objc.NSDictionary) then
   local t = {}
   --		local count = tonumber(obj:count())
@@ -2147,7 +2147,7 @@ local function convert_fp_arg(ftype, arg)
 end
 
 local function convert_arg(ftype, i, arg)
-  local argtype = ftype[i]
+  local argtype = ftype[i]:sub(1,1)
   if argtype == ':' then
     return selector(arg) --selector, string
   elseif argtype == '#' then
@@ -2187,8 +2187,17 @@ local function convert_ret(ftype, ret)
     return ret --pass through
   end
 end
+
 function function_caller(ftype, func)
-  if #ftype == 0 then
+  local needs_conversion=ftype.fp or ftype.retval=='B' or ftype.retval=='*' or ftype.retval=='r*'
+  if not needs_conversion then
+    for _,argtype in ipairs(ftype) do
+      argtype=argtype:sub(1,1)
+      if argtype==':' or argtype=='#' or argtype=='@' then needs_conversion=true break end
+    end
+  end
+  if not needs_conversion then return false
+  elseif #ftype == 0 then
     return function()
       return convert_ret(ftype, func())
     end
