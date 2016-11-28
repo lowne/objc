@@ -200,7 +200,7 @@ end
 
 errors = true    --log non-fatal errors to stderr
 errcount = {}    --error counts per topic
-logtopics = {}   --topics to log (none by default)
+logtopics = {notwrapped=true}   --topics to log (none by default)
 
 local function writelog(topic, fmt, ...)
   io.stderr:write(_('[objc] %-16s %s\n', topic, _(fmt, ...)))
@@ -660,7 +660,10 @@ local function add_function(name, ftype, lazy) --cdef and call-wrap a global C f
     --this is because in luajit2 can only hold as many as 64k ctypes total.
     rawset(objc, name, function(...)
       local func = addfunc()
-      if not func then return end
+      if not func then return
+      elseif func==C[name] then
+        log('notwrapped','call %s directly from ffi.C',name)
+      end
       return func(...)
     end)
   else
