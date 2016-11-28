@@ -229,7 +229,7 @@ end
 checkredef = false --check incompatible redefinition attempts (makes parsing slower)
 printcdecl = false --print C declarations to stdout (then you can grab them and make static ffi headers)
 cnames = {global = {0}, struct = {0}} --C namespaces; ns[1] holds the count
-
+cdefs={}
 local function defined(name, namespace) --check if a name is already defined in a C namespace
   return not checkredef and cnames[namespace][name]
 end
@@ -641,6 +641,7 @@ end
 local function_caller --fw. decl.
 
 local function add_function(name, ftype, lazy) --cdef and call-wrap a global C function
+  cdefs[name]=ftype_ctype(ftype,name) -- store for objc.cdef
   if lazy == nil then lazy = lazyfuncs end
 
   local function addfunc()
@@ -2384,23 +2385,32 @@ objc.tolua = tolua
 objc.nptr  = nptr
 objc.ipairs = array_ipairs
 
---autoload
-local submodules = {
-  inspect = 'objc_inspect',   --inspection tools
-  dispatch = 'objc_dispatch', --GCD binding
-}
-local function autoload(k)
-  return submodules[k] and require(submodules[k]) and objc[k]
+--force cdef
+objc.cdef=function(name)
+  local cdecl=cdefs[name]
+  check(cdecl,'objc.lua: %s not found',name)
+  return declare(name,'global',cdecl)
 end
 
---dynamic namespace
-setmetatable(objc, {
-  __index = function(t, k)
-    return class(k) or csymbol(k) or autoload(k) or error('objc.lua: '..k..' not found')
-  end,
-  __autoload = submodules, --for inspection
-})
 
+do
+  --autoload
+  local submodules = {
+    inspect = 'objc_inspect',   --inspection tools
+    dispatch = 'objc_dispatch', --GCD binding
+  }
+  local function autoload(k)
+    return submodules[k] and require(submodules[k]) and objc[k]
+  end
+
+  --dynamic namespace
+  setmetatable(objc, {
+    __index = function(t, k)
+      return class(k) or csymbol(k) or autoload(k) or error('objc.lua: '..k..' not found')
+    end,
+    __autoload = submodules, --for inspection
+  })
+end
 --print namespace
 if not ... then
   for k,v in pairs(objc) do
