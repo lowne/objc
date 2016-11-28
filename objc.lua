@@ -2146,6 +2146,19 @@ local function convert_fp_arg(ftype, arg)
   end
 end
 
+local stype_ct=memoize(stype_ctype)
+
+local CF_BRIDGED={
+  ['^{__CFString=}']           ={'struct objc_object *'},
+  ['r^{__CFString=}']          ={'struct objc_object *'},
+  ['CFStringRef']              ={'struct objc_object *'},
+  ['CFNumberRef']              =true,
+  ['^{__CFMutableArray=}']     =true,
+  ['CFMutableArrayRef']        =true,
+  ['^{__CFMutableDictionary=}']=true,
+  ['CFMutableDictionaryRef']   =true,
+}
+
 local function convert_arg(ftype, i, arg)
   local argtype = ftype[i]:sub(1,1)
   if argtype == ':' then
@@ -2157,7 +2170,19 @@ local function convert_arg(ftype, i, arg)
   elseif ftype.fp and ftype.fp[i] then
     return convert_fp_arg(ftype.fp[i], arg) --function
   else
-    return arg --pass through
+    local allowed_types=CF_BRIDGED[ftype[i]]
+    if allowed_types then
+      arg=toobj(arg)
+      local is_allowed
+      for _,ct in ipairs(allowed_types) do
+        if ffi.istype(ct,arg) then is_allowed=true break end
+      end
+      local nt=stype_ct(ftype[i])
+      check(is_allowed,'cannot cast %s to %s',arg,nt)
+      return cast(nt,toobj(arg)) --string, number, array-table, dict-table
+    else
+      return arg --pass through
+    end
   end
 end
 
@@ -2192,6 +2217,7 @@ function function_caller(ftype, func)
   local needs_conversion=ftype.fp or ftype.retval=='B' or ftype.retval=='*' or ftype.retval=='r*'
   if not needs_conversion then
     for _,argtype in ipairs(ftype) do
+      if CF_BRIDGED[argtype] then needs_conversion=true break end
       argtype=argtype:sub(1,1)
       if argtype==':' or argtype=='#' or argtype=='@' then needs_conversion=true break end
     end
